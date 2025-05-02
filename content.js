@@ -1,62 +1,358 @@
 (function() {
-  // Check if we're on an eBay item page
-  if (!window.location.href.includes('ebay.com/itm/')) {
+  // ページタイプを判定
+  const isItemPage = window.location.href.includes('ebay.com/itm/');
+  const isSearchPage = window.location.href.includes('ebay.com/sch/');
+  
+  // どちらのページタイプでもなければ終了
+  if (!isItemPage && !isSearchPage) {
     return;
   }
-
-  // Check if button is already added
-  if (document.getElementById('ebay-md-button')) {
-    return;
+  
+  // ページに適したセットアップを実行
+  if (isItemPage) {
+    setupItemPage();
+  } else if (isSearchPage) {
+    setupSearchPage();
+  }
+  
+  // 商品詳細ページのセットアップ
+  function setupItemPage() {
+    // すでにボタンが追加されている場合は終了
+    if (document.getElementById('ebay-md-button')) {
+      return;
+    }
+    
+    addDetailPageButton();
+  }
+  
+  // 検索結果ページのセットアップ
+  function setupSearchPage() {
+    // すでに初期化済みの場合は終了
+    if (document.querySelector('.ebay-md-search-button')) {
+      return;
+    }
+    
+    // 新しい商品が読み込まれる可能性があるため、MutationObserverを設定
+    setupSearchResultsObserver();
+    
+    // 初期表示の商品にボタンを追加
+    addSearchPageButtons();
+  }
+  
+  // 商品リストの変化を監視するObserver
+  function setupSearchResultsObserver() {
+    const observer = new MutationObserver((mutations) => {
+      let shouldAddButtons = false;
+      
+      mutations.forEach((mutation) => {
+        if (mutation.addedNodes.length > 0 && 
+            (mutation.target.classList.contains('srp-results') || 
+             mutation.target.classList.contains('srp-list'))) {
+          shouldAddButtons = true;
+        }
+      });
+      
+      if (shouldAddButtons) {
+        addSearchPageButtons();
+      }
+    });
+    
+    // 商品リストの親要素を監視
+    const listContainer = document.querySelector('.srp-results');
+    if (listContainer) {
+      observer.observe(listContainer, { childList: true, subtree: true });
+    }
+  }
+  
+  // 商品詳細ページ用ボタン追加関数
+  function addDetailPageButton() {
+    const buttonStyle = `
+      position: fixed;
+      top: 120px;
+      right: 20px;
+      z-index: 9999;
+      background-color: #3665f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    `;
+    
+    const button = document.createElement('button');
+    button.id = 'ebay-md-button';
+    button.textContent = 'MDで保存';
+    button.setAttribute('style', buttonStyle);
+    button.addEventListener('mouseover', () => {
+      button.style.backgroundColor = '#2b4fb8';
+    });
+    button.addEventListener('mouseout', () => {
+      button.style.backgroundColor = '#3665f3';
+    });
+    button.addEventListener('click', extractAndSaveMd);
+    document.body.appendChild(button);
+  }
+  
+  // 検索結果ページ用ボタン追加関数
+  function addSearchPageButtons() {
+    // 商品リスト要素を取得（すでにボタンがある要素は除外）
+    const itemElements = document.querySelectorAll('li.s-item:not(.ebay-md-processed)');
+    
+    if (itemElements.length === 0) {
+      return;
+    }
+    
+    // インラインボタンのスタイル
+    const inlineButtonStyle = `
+      background-color: #3665f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+      display: block;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+      z-index: 100;
+    `;
+    
+    // 各商品要素にボタンを追加
+    itemElements.forEach((item, index) => {
+      // 処理済みとしてマーク
+      item.classList.add('ebay-md-processed');
+      
+      // ボタン作成
+      const button = document.createElement('button');
+      button.textContent = 'MDで保存';
+      button.className = 'ebay-md-search-button';
+      button.setAttribute('data-item-index', index);
+      button.setAttribute('style', inlineButtonStyle);
+      
+      // ホバーエフェクト
+      button.addEventListener('mouseover', () => {
+        button.style.backgroundColor = '#2b4fb8';
+      });
+      button.addEventListener('mouseout', () => {
+        button.style.backgroundColor = '#3665f3';
+      });
+      
+      // クリックイベント
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        extractAndSaveSearchItemMd(item);
+      });
+      
+      // 詳細情報セクションを見つけてボタンを追加
+      const detailsSection = item.querySelector('.s-item__details');
+      if (detailsSection) {
+        // ボタン用のコンテナを作成
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 's-item__detail s-item__detail--primary';
+        buttonContainer.appendChild(button);
+        
+        // 適切な位置にボタンを挿入
+        detailsSection.querySelector('.s-item__details-section--primary').appendChild(buttonContainer);
+      }
+    });
+  }
+  
+  // 検索結果からの商品データ抽出とMD生成
+  function extractAndSaveSearchItemMd(itemElement) {
+    try {
+      const markdown = generateSearchItemMarkdown(itemElement);
+      
+      // クリップボードコピーとファイル保存
+      copyToClipboard(markdown);
+      saveAsFile(markdown, extractSearchItemTitle(itemElement));
+      
+      // 成功のフィードバック（視覚的なハイライト）
+      itemElement.style.transition = 'background-color 0.5s ease';
+      itemElement.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+      setTimeout(() => {
+        itemElement.style.backgroundColor = '';
+      }, 2000);
+      
+      showNotification('マークダウンをコピーし、ファイルをダウンロードしました！');
+    } catch (error) {
+      console.error('Error extracting eBay search item data:', error);
+      showNotification('エラーが発生しました。コンソールを確認してください。', true);
+      
+      // 失敗のフィードバック
+      itemElement.style.transition = 'background-color 0.5s ease';
+      itemElement.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+      setTimeout(() => {
+        itemElement.style.backgroundColor = '';
+      }, 2000);
+    }
+  }
+  
+  // 検索結果アイテムのマークダウン生成
+  function generateSearchItemMarkdown(itemElement) {
+    // 基本情報抽出（エラーハンドリング強化）
+    const title = safeExtract(() => extractSearchItemTitle(itemElement), 'Unknown Title');
+    const price = safeExtract(() => extractSearchItemPrice(itemElement), 'Unknown Price');
+    const condition = safeExtract(() => extractSearchItemCondition(itemElement), 'Not specified');
+    const seller = safeExtract(() => extractSearchItemSeller(itemElement), 'Unknown Seller');
+    const shipping = safeExtract(() => extractSearchItemShipping(itemElement), 'Shipping not specified');
+    const location = safeExtract(() => extractSearchItemLocation(itemElement), 'Location not specified');
+    const link = safeExtract(() => extractSearchItemLink(itemElement), '');
+    
+    // 現在の日付
+    const today = new Date();
+    const formattedDate = `${today.toLocaleString('en-US', { month: 'short' })} ${today.getDate()}, ${today.getFullYear()}`;
+    
+    // マークダウン構築
+    let md = `# ${title}\n\n`;
+    
+    md += `## Basic Information\n`;
+    md += `- **Price**: ${price}\n`;
+    md += `- **Condition**: ${condition}\n`;
+    
+    // セラー情報がある場合のみ追加
+    if (seller !== 'Unknown Seller') {
+      md += `- **Seller**: ${seller}\n`;
+    }
+    
+    // 配送情報がある場合のみ追加
+    if (shipping !== 'Shipping not specified') {
+      md += `- **Shipping**: ${shipping}\n`;
+    }
+    
+    // 場所情報がある場合のみ追加
+    if (location !== 'Location not specified') {
+      md += `- **Location**: ${location}\n`;
+    }
+    
+    // リンクがある場合のみ追加
+    if (link) {
+      md += `- **Link**: ${link}\n`;
+    }
+    
+    // 製品の詳細情報を取得して追加（あれば）
+    const itemDetails = safeExtract(() => extractSearchItemDetails(itemElement), null);
+    if (itemDetails && Object.keys(itemDetails).length > 0) {
+      md += `\n## Item Details\n`;
+      for (const [key, value] of Object.entries(itemDetails)) {
+        md += `- **${key}**: ${value}\n`;
+      }
+    }
+    
+    // フッター
+    md += `\n---\n\n`;
+    md += `*This data was automatically extracted from eBay search result*  \n`;
+    md += `*Date: ${formattedDate}*`;
+    
+    return md;
+  }
+  
+  // 安全な抽出ヘルパー関数
+  function safeExtract(extractFn, defaultValue) {
+    try {
+      const result = extractFn();
+      return result || defaultValue;
+    } catch (error) {
+      console.error('Extraction error:', error);
+      return defaultValue;
+    }
+  }
+  
+  // 検索結果からの個別データ抽出ヘルパー関数
+  function extractSearchItemTitle(itemElement) {
+    // プライマリセレクタとフォールバックセレクタの組み合わせ
+    const titleElement = 
+      itemElement.querySelector('.s-item__title span') || 
+      itemElement.querySelector('.s-item__title') ||
+      itemElement.querySelector('h3');
+      
+    return titleElement ? titleElement.textContent.trim() : 'Unknown Title';
+  }
+  
+  function extractSearchItemPrice(itemElement) {
+    const priceElement = itemElement.querySelector('.s-item__price');
+    return priceElement ? priceElement.textContent.trim() : 'Unknown Price';
+  }
+  
+  function extractSearchItemCondition(itemElement) {
+    const conditionElement = 
+      itemElement.querySelector('.SECONDARY_INFO') || 
+      itemElement.querySelector('.s-item__subtitle span:first-child');
+    return conditionElement ? conditionElement.textContent.trim() : 'Not specified';
+  }
+  
+  function extractSearchItemSeller(itemElement) {
+    const sellerElement = itemElement.querySelector('.s-item__seller-info-text');
+    return sellerElement ? sellerElement.textContent.trim() : 'Unknown Seller';
+  }
+  
+  function extractSearchItemShipping(itemElement) {
+    const shippingElement = itemElement.querySelector('.s-item__shipping');
+    return shippingElement ? shippingElement.textContent.trim() : 'Shipping not specified';
+  }
+  
+  function extractSearchItemLocation(itemElement) {
+    const locationElement = itemElement.querySelector('.s-item__location');
+    return locationElement ? locationElement.textContent.trim() : 'Location not specified';
+  }
+  
+  function extractSearchItemLink(itemElement) {
+    const linkElement = itemElement.querySelector('.s-item__link');
+    return linkElement ? linkElement.href : '';
+  }
+  
+  function extractSearchItemDetails(itemElement) {
+    const details = {};
+    
+    // カテゴリを取得
+    const categoryElement = itemElement.querySelector('.s-item__subtitle');
+    if (categoryElement) {
+      const categoryText = categoryElement.textContent.trim();
+      if (categoryText.includes('Nintendo')) {
+        details['Platform'] = categoryText.split('·')[1] ? categoryText.split('·')[1].trim() : categoryText;
+      }
+    }
+    
+    // タイトルからゲーム名やモデル番号を抽出
+    const title = extractSearchItemTitle(itemElement);
+    if (title.toLowerCase().includes('mother 2')) {
+      details['Game'] = 'Mother 2 (Earthbound)';
+    }
+    
+    // 製品IDの抽出（数字4桁+アルファベット1-3文字のパターン）
+    const productIdMatch = title.match(/\b\d{4}\s*[a-zA-Z]{1,3}\b/);
+    if (productIdMatch) {
+      details['Product ID'] = productIdMatch[0];
+    }
+    
+    return details;
   }
 
-  // Create and inject the MD button
-  const buttonStyle = `
-    position: fixed;
-    top: 120px;
-    right: 20px;
-    z-index: 9999;
-    background-color: #3665f3;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 10px 15px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    transition: all 0.3s ease;
-  `;
-
-  const button = document.createElement('button');
-  button.id = 'ebay-md-button';
-  button.textContent = 'MDで保存';
-  button.setAttribute('style', buttonStyle);
-  button.addEventListener('mouseover', () => {
-    button.style.backgroundColor = '#2b4fb8';
-  });
-  button.addEventListener('mouseout', () => {
-    button.style.backgroundColor = '#3665f3';
-  });
-  button.addEventListener('click', extractAndSaveMd);
-  document.body.appendChild(button);
-
-  // Main function to extract data and save as markdown
+  // メイン商品ページのマークダウン生成と保存
   function extractAndSaveMd() {
     try {
       const markdown = generateMarkdown();
       
       // Both copy to clipboard and save as file
       copyToClipboard(markdown);
-      saveAsFile(markdown);
+      saveAsFile(markdown, extractTitle());
       
       showNotification('マークダウンをコピーし、ファイルをダウンロードしました！');
     } catch (error) {
       console.error('Error extracting eBay data:', error);
-      showNotification('エラーが発生しました。コンソールを確認してください。');
+      showNotification('エラーが発生しました。コンソールを確認してください。', true);
     }
   }
 
-  // Generate markdown from page data
+  // 詳細ページのマークダウン生成
   function generateMarkdown() {
     // Extract basic information
     const title = extractTitle();
@@ -184,7 +480,10 @@
     if (title.includes('Super Famicom') || title.includes('SFC')) {
       details['Platform'] = 'Super Famicom (SFC)';
     } else if (title.includes('PlayStation') || title.includes('PS')) {
-      details['Platform'] = title.match(/PlayStation\s*\d+|PS\d+/)[0];
+      const psMatch = title.match(/PlayStation\s*\d+|PS\d+/);
+      if (psMatch) {
+        details['Platform'] = psMatch[0];
+      }
     }
     
     // Extract product ID if available
@@ -193,9 +492,10 @@
       details['Product ID'] = productIdMatch[0];
     }
     
-    // Extract the actual title (without platform, etc.)
-    const mainTitle = title.split(' ')[0]; // This is very simplistic
-    details['Title'] = mainTitle;
+    // ゲーム名の検出
+    if (title.toLowerCase().includes('mother 2')) {
+      details['Game'] = 'Mother 2 (Earthbound)';
+    }
     
     return details;
   }
@@ -364,9 +664,9 @@
   }
 
   // Save markdown as a file
-  function saveAsFile(content) {
+  function saveAsFile(content, titleFromElement) {
     // Get title for filename
-    const title = extractTitle();
+    const title = titleFromElement || extractTitle();
     const safeTitle = title.replace(/[^\w\s]/gi, '').substring(0, 30).trim().replace(/\s+/g, '_');
     const filename = `${safeTitle}_eBay_${Date.now()}.md`;
     
@@ -383,13 +683,13 @@
     URL.revokeObjectURL(downloadLink.href);
   }
 
-  function showNotification(message) {
+  function showNotification(message, isError = false) {
     const notification = document.createElement('div');
     const notificationStyle = `
       position: fixed;
       top: 20px;
       right: 20px;
-      background-color: #4CAF50;
+      background-color: ${isError ? '#F44336' : '#4CAF50'};
       color: white;
       padding: 16px;
       border-radius: 4px;
