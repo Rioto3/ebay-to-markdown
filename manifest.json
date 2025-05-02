@@ -4,8 +4,8 @@
   "version": "1.0",
   "description": "Convert eBay product pages to markdown format",
   "icons": {
-    "48": "icons/icon-48.png",
-    "96": "icons/icon-96.png"
+    "48": "icons/icon-48.svg",
+    "96": "icons/icon-96.svg"
   },
   "permissions": [
     "activeTab",
@@ -21,8 +21,8 @@
   ],
   "browser_action": {
     "default_icon": {
-      "19": "icons/icon-19.png",
-      "38": "icons/icon-38.png"
+      "19": "icons/icon-19.svg",
+      "38": "icons/icon-48.svg"
     },
     "default_title": "eBay-MD"
   }
