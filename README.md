@@ -4,11 +4,13 @@ A Firefox extension that converts eBay product listings to markdown format with 
 
 ## Features
 
-- **Simple UI**: Adds a "MDで保存" (Save as MD) button to eBay product pages
+- **Simple UI**: Adds a "MDで保存" (Save as MD) button to eBay product pages and search results
 - **Comprehensive Data Extraction**: Captures product details, pricing, condition, shipping, and more
+- **Search Results Support**: Extract data directly from eBay search results without opening individual listings
 - **Structured Output**: Converts data to well-organized markdown format
 - **Dual Output**: Both copies to clipboard and saves as a file
 - **Japanese Support**: UI elements in Japanese for ease of use
+- **Visual Feedback**: Highlights items when saving from search results for better user experience
 
 ## Screenshots
 
@@ -34,6 +36,8 @@ A Firefox extension that converts eBay product listings to markdown format with 
 
 ## Usage
 
+### Product Page
+
 1. Visit any eBay item page (URLs containing "ebay.com/itm/")
 2. Look for the blue "MDで保存" button in the top-right corner
 3. Click the button to:
@@ -41,7 +45,19 @@ A Firefox extension that converts eBay product listings to markdown format with 
    - Copy the markdown to your clipboard
    - Download the markdown as a file named after the product
 
+### Search Results Page
+
+1. Go to any eBay search results page (URLs containing "ebay.com/sch/")
+2. Each item in the list will have a blue "MDで保存" button at the bottom
+3. Click the button on any item to:
+   - Extract basic information from the search result
+   - Copy the markdown to your clipboard
+   - Download the markdown as a file
+   - See a visual confirmation highlight on the selected item
+
 ## Extracted Information
+
+### From Product Pages
 
 The markdown output includes:
 
@@ -51,6 +67,15 @@ The markdown output includes:
 - **Shipping Information**: Cost, method, origin, estimated delivery dates
 - **Payment Methods**: Available payment options
 - **Additional Information**: Seller rating, number of watchers, guarantees, etc.
+
+### From Search Results
+
+The markdown output includes:
+
+- **Basic Information**: Price, condition, seller details
+- **Shipping Information**: Cost and shipping location
+- **Item Link**: Direct URL to the product page
+- **Additional Context**: Platform info, product ID when detected
 
 ## Development
 
@@ -69,9 +94,9 @@ ebay-to-markdown/
 
 ### Customization
 
-- **Output Format**: Edit the `generateMarkdown()` function in `content.js` to change the markdown structure
+- **Output Format**: Edit the `generateMarkdown()` and `generateSearchItemMarkdown()` functions in `content.js` to change the markdown structure
 - **Data Extraction**: Modify the extraction functions in `content.js` for different data points
-- **Styling**: Adjust the `buttonStyle` and `notificationStyle` variables for visual changes
+- **Styling**: Adjust the `buttonStyle` and `inlineButtonStyle` variables for visual changes
 - **Languages**: Change the button text and notification messages for different languages
 
 ### Modifying Selectors
@@ -82,11 +107,14 @@ The extension uses CSS selectors to extract data from eBay pages. If eBay change
 2. Locate the appropriate elements
 3. Update the selectors in the extraction functions
 
+For search results, the extension uses a combination of primary and fallback selectors to improve reliability.
+
 ## Known Limitations
 
-- Works only on eBay item pages
+- Works only on eBay item pages and search result pages
 - Some special eBay listings (auctions, multi-variation items) may have incomplete data extraction
 - eBay page structure changes may require selector updates
+- Search results extraction provides less detailed information than full product page extraction
 
 ## Contributing
 
