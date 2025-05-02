@@ -15,7 +15,10 @@
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.ebay.com/itm/*"],
+      "matches": [
+        "*://*.ebay.com/itm/*",
+        "*://*.ebay.com/sch/*"
+      ],
       "js": ["content.js"]
     }
   ],
